@@ -47,6 +47,7 @@ local vGDA = 0
 local vGL = 0
 local vGLA = 0
 
+local current_mode = -1
 local secs = 0
 local recasttemp = 0
 
@@ -84,101 +85,32 @@ windower.register_event('prerender', function()
 end)
 
 function ability_hud ()
-			--Get number of SCH Job Points
-			sch_jp = windower.ffxi.get_player().job_points.sch.jp_spent
-			--Get recast on Stratagems
-			local recast = windower.ffxi.get_ability_recasts()[231]
+	--Get number of SCH Job Points
+	local sch_jp = windower.ffxi.get_player().job_points.sch.jp_spent
+	--Get recast on Stratagems
+	local recast = windower.ffxi.get_ability_recasts()[231]
 
-			if BuffActive(359) then --Dark Arts
-				vGD = 255
-				vGDA = 0
-				vGL = 0
-				vGLA = 0
-				texts.alpha(stratcount, 255)
-				texts.stroke_alpha(stratcount, 255)
-			elseif BuffActive(358) then --Light Arts
-				vGD = 0
-				vGDA = 0
-				vGL = 255
-				vGLA = 0
-				texts.alpha(stratcount, 255)
-				texts.stroke_alpha(stratcount, 255)
-			elseif BuffActive(401) then --Addendum White
-				vGD = 0
-				vGDA = 0
-				vGL = 0
-				vGLA = 255
-				texts.alpha(stratcount, 255)
-				texts.stroke_alpha(stratcount, 255)
-			elseif BuffActive(402) then --Addendum Black
-				vGD = 0
-				vGDA = 255
-				vGL = 0
-				vGLA = 0
-				texts.alpha(stratcount, 255)
-				texts.stroke_alpha(stratcount, 255)				
-			else --No Arts Active
-				vGD = 0
-				vGDA = 0
-				vGL = 100
-				vGLA = 0
-				texts.alpha(stratcount, 50)
-				texts.stroke_alpha(stratcount, 100)
-			end
+	current_mode = update_images(current_mode)
 
-
-			if sch_jp > 549 then
-				if recast == 0 then
-					texts.text(stratcount, "5")
-				elseif recast < 33 then
-					texts.text(stratcount, "4")
-				elseif recast < 66 then
-					texts.text(stratcount, "3")
-				elseif recast < 99 then
-					texts.text(stratcount, "2")
-				elseif recast < 132 then
-					texts.text(stratcount, "1")	
-				else
-					texts.text(stratcount, "0")
-				end	
-				recasttemp = recast % 33
-			else
-				if recast == 0 then
-					texts.text(stratcount, "5")
-				elseif recast < 48 then
-					texts.text(stratcount, "4")
-				elseif recast < 96 then
-					texts.text(stratcount, "3")
-				elseif recast < 144 then
-					texts.text(stratcount, "2")
-				elseif recast < 192 then
-					texts.text(stratcount, "1")					
-				else
-					texts.text(stratcount, "0")
-				end
-				recasttemp = recast % 48
-				
-			end
-
-		
-		windower.prim.set_color('grimoire-d', vGD, vGD, vGD, vGD)	
-		windower.prim.set_color('grimoire-da', vGDA, vGDA, vGDA, vGDA)	
-		windower.prim.set_color('grimoire-l', vGL, vGL, vGL, vGL)
-		windower.prim.set_color('grimoire-la', vGLA, vGLA, vGLA, vGLA)
-
-		secs = recasttemp % 60
+	local charges = 5
+	local recharge_time = 48
+	if sch_jp > 549 then
+		recharge_time = 33
+	end
 	
-		if (recast ~= 0) then
-			texts.visible(timer3, true)
-			if (secs > 9) then
-				texts.text(timer3, "" .. tostring(secs))
-			else
-				texts.text(timer3, "0" .. tostring(secs))
-			end
-		else
-			texts.visible(timer3, false)
-		end
+	-- Determine the number of strategems available
+	-- We invert the recast timer and use the modulus for the count
+	local strategems = ((charges * recharge_time) - recast) / recharge_time
+	texts.text(stratcount, '%d':format(strategems))
 
+	-- Calculate the time for the next strategem from the additive recast
+	if (recast > 0) then
+		next_strat = recast % recharge_time
+		texts.text(timer3, '%.2d':format(next_strat)
+		texts.visible(timer3, true)
+	else
+		texts.visible(timer3, false)
+	end
 end
 
 function BuffActive(buffnum)
@@ -194,6 +126,8 @@ function delete()
 	for index, image_name in pairs(images) do
 		windower.prim.delete(image_name)
 	end
+	texts.destroy(stratcount)
+	texts.destroy(timer3)
 end
 
 function set_screen_position() 
@@ -202,6 +136,51 @@ function set_screen_position()
 	end
 	texts.pos(timer3, settings.pos.x + 93, settings.pos.y + 38)
 	texts.pos(stratcount, settings.pos.x + 43, settings.pos.y + 30)
+end
+
+-- Updates the displayed images if the passed in mode does match the current game state.  If no mode is passed in, the images are always updated.
+-- Returns the current mode as a number
+function update_images(mode)
+	local new_mode = 0
+	mode = mode or -1
+	vGD = 0
+	vGDA = 0
+	vGL = 0
+	vGLA = 0
+
+	if BuffActive(359) then --Dark Arts
+		new_mode = 1
+		vGD = 255
+	elseif BuffActive(358) then --Light Arts
+		new_mode = 2
+		vGL = 255
+	elseif BuffActive(401) then --Addendum White
+		new_mode = 3
+		vGLA = 255
+	elseif BuffActive(402) then --Addendum Black
+		new_mode = 4
+		vGDA = 255
+	else --No Arts Active
+		new_mode = 0
+		vGL = 100
+	end
+
+	-- Only modify the images if the mode was changed.
+	if mode ~= new_mode then
+		if new_mode == 0 then
+			texts.alpha(stratcount, 50)
+			texts.stroke_alpha(stratcount, 100)
+		else
+			texts.alpha(stratcount, 255)
+			texts.stroke_alpha(stratcount, 255)
+		end
+		windower.prim.set_color('grimoire-d', vGD, vGD, vGD, vGD)	
+		windower.prim.set_color('grimoire-da', vGDA, vGDA, vGDA, vGDA)	
+		windower.prim.set_color('grimoire-l', vGL, vGL, vGL, vGL)
+		windower.prim.set_color('grimoire-la', vGLA, vGLA, vGLA, vGLA)
+	end
+
+	return mode
 end
 
 windower.register_event('unload',function()
