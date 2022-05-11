@@ -1,17 +1,16 @@
 _addon.name = 'SCH-hud'
 _addon.author = 'NeoNRAGE'
-_addon.version = '1.0.0'
+_addon.version = '1.1.0'
+_addon.commands = {'sch'}
 
+config = require('config')
 texts = require('texts')
-timer3 = texts.new("")
-stratcount = texts.new("")
-local time_start = 0
+require('logger')
 
-local iPosition_x = 1210
-local iPosition_y = 785
+local timer3 = texts.new("")
+local stratcount = texts.new("")
 
 texts.visible(timer3, false)
-texts.pos(timer3, iPosition_x + 93, iPosition_y + 38)
 texts.bg_alpha(timer3, 0)
 texts.size(timer3, 26)
 texts.font(timer3, 'Arial')
@@ -21,8 +20,7 @@ texts.stroke_alpha(timer3, 255)
 texts.stroke_width(timer3, 1.5)
 texts.stroke_color(timer3, 0, 0, 0)
 
-texts.visible(stratcount, true)
-texts.pos(stratcount, iPosition_x + 43, iPosition_y + 30)
+texts.visible(stratcount, false)
 texts.bg_alpha(stratcount, 0)
 texts.size(stratcount, 35)
 texts.font(stratcount, 'Arial')
@@ -33,6 +31,17 @@ texts.stroke_width(stratcount, 1.5)
 texts.stroke_color(stratcount, 255, 255, 255)
 texts.alpha(stratcount, 50)
 
+local time_start = 0
+local defaults = {}
+defaults.interval = 0.1
+defaults.pos = {}
+defaults.pos.x = 1210
+defaults.pos.y = 785
+
+local settings = config.load(defaults)
+local debug = false
+
+local images = {'grimoire-d', 'grimoire-da', 'grimoire-l', 'grimoire-la'}
 local vGD = 0
 local vGDA = 0
 local vGL = 0
@@ -42,56 +51,36 @@ local secs = 0
 local recasttemp = 0
 
 windower.register_event('load', function() 
-	--Dark Arts
-	windower.prim.create('grimoire-d')	
-	windower.prim.set_color('grimoire-d', vGD, vGD, vGD, vGD)	
-	windower.prim.set_fit_to_texture('grimoire-d', false)
-	windower.prim.set_texture('grimoire-d', windower.addon_path .. 'assets/grimoire-d.png')
-	windower.prim.set_repeat('grimoire-d',1,1)
-    windower.prim.set_visibility('grimoire-d',true)
-	windower.prim.set_position('grimoire-d', iPosition_x, iPosition_y)
-	windower.prim.set_size('grimoire-d', 170, 120)	
 
-	--Addendum Black
-	windower.prim.create('grimoire-da')	
-	windower.prim.set_color('grimoire-da', vGDA, vGDA, vGDA, vGDA)	
-	windower.prim.set_fit_to_texture('grimoire-da', false)
-	windower.prim.set_texture('grimoire-da', windower.addon_path .. 'assets/grimoire-da.png')
-	windower.prim.set_repeat('grimoire-da',1,1)
-    windower.prim.set_visibility('grimoire-da',true)
-	windower.prim.set_position('grimoire-da', iPosition_x, iPosition_y)
-	windower.prim.set_size('grimoire-da', 170, 120)	
-	
-	--Light Arts
-	windower.prim.create('grimoire-l')	
-	windower.prim.set_color('grimoire-l', vGL, vGL, vGL, vGL)	
-	windower.prim.set_fit_to_texture('grimoire-l', false)
-	windower.prim.set_texture('grimoire-l', windower.addon_path .. 'assets/grimoire-l.png')
-	windower.prim.set_repeat('grimoire-l',1,1)
-    windower.prim.set_visibility('grimoire-l',true)
-	windower.prim.set_position('grimoire-l', iPosition_x, iPosition_y)
-	windower.prim.set_size('grimoire-l', 170, 120)	
+	-- We currently don't support SCH sub-job or main level < 99.  Unload gracefully instead.
+	local player =  windower.ffxi.get_player()
+	if player.main_job_id ~= 20 or player.main_job_level < 99 then
+		print('%s (v%s) does not currently support main jobs other than level 99 SCH. Unloading':format(_addon.name, _addon.version))
+		windower.send_command('lua u sch-hud')
+		return
+	end
 
-	--Addendum White
-	windower.prim.create('grimoire-la')	
-	windower.prim.set_color('grimoire-la', vGLA, vGLA, vGLA, vGLA)	
-	windower.prim.set_fit_to_texture('grimoire-la', false)
-	windower.prim.set_texture('grimoire-la', windower.addon_path .. 'assets/grimoire-la.png')
-	windower.prim.set_repeat('grimoire-la',1,1)
-    windower.prim.set_visibility('grimoire-la',true)
-	windower.prim.set_position('grimoire-la', iPosition_x, iPosition_y)
-	windower.prim.set_size('grimoire-la', 170, 120)	
-	
+	for index, image_name in ipairs(images) do
+		windower.prim.create(image_name)
+		windower.prim.set_color(image_name, 0, 0, 0, 0)	
+		windower.prim.set_fit_to_texture(image_name, false)
+		windower.prim.set_texture(image_name, windower.addon_path .. 'assets/%s.png':format(image_name))
+		windower.prim.set_repeat(image_name, 1, 1)
+		windower.prim.set_visibility(image_name, true)
+		windower.prim.set_position(image_name, settings.pos.x, settings.pos.y)
+		windower.prim.set_size(image_name, 170, 120)	
+	end
+	set_screen_position()
 	texts.alpha(stratcount, 50)
+	texts.visible(stratcount, true)
 end)
 
 windower.register_event('prerender', function()
-
-    if os.time() > time_start then
-        time_start = os.time()		
-        ability_hud() 
-    end
-	
+	local now = os.time()
+	if now > time_start + interval then
+		time_start = now
+		ability_hud() 
+	end
 end)
 
 function ability_hud ()
@@ -202,10 +191,17 @@ function BuffActive(buffnum)
 end
 
 function delete()
-	windower.prim.delete('grimoire-d')
-	windower.prim.delete('grimoire-da')
-	windower.prim.delete('grimoire-l')
-	windower.prim.delete('grimoire-la')	
+	for index, image_name in pairs(images) do
+		windower.prim.delete(image_name)
+	end
+end
+
+function set_screen_position() 
+	for index, image_name in pairs(images) do
+		windower.prim.set_position(image_name, settings.pos.x, settings.pos.y)
+	end
+	texts.pos(timer3, settings.pos.x + 93, settings.pos.y + 38)
+	texts.pos(stratcount, settings.pos.x + 43, settings.pos.y + 30)
 end
 
 windower.register_event('unload',function()
@@ -218,7 +214,33 @@ end)
 
 windower.register_event('job change',function(main_job_id)
 	if (main_job_id ~= 20) then
-		print(main_job_id)
+		print('Job changed off of SCH, unloading %s':format(_addon.name))
 		windower.send_command('lua u sch-hud')
 	end
+end)
+
+windower.register_event('addon command', function(command1, command2, command3, ...)
+    local args = L{...}
+    command1 = command1 and command1:lower() or nil
+    command2 = command2 and command2:lower() or nil
+	command3 = command3 and command3:lower() or nil
+    
+    local name = args:concat(' ')
+    if command1 == 'p' or command1 == 'position' then
+		settings.pos.x = tonumber(command2) or 1210
+		settings.pos.y = tonumber(command3) or 785
+        log('Position set to <%s, %s>.':format(settings.pos.x, settings.pos.y))
+        settings:save()
+		set_screen_position()
+
+    elseif command1 == 'i' or command1 == 'interval' then
+        settings.interval = tonumber(command2) or .1
+        log('Refresh interval set to %s seconds.':format(settings.interval))
+        settings:save()
+
+    else
+        print('%s (v%s)':format(_addon.name, _addon.version))
+        print('    \\cs(255,255,255)position <x> <y>\\cr - Changes the position of the graphics on the screen (defaults: x=1210, y=785)')
+        print('    \\cs(255,255,255)interval <value>\\cr - Allows you to change the refresh interval (default: 0.1)')
+    end
 end)
