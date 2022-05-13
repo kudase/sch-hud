@@ -78,7 +78,7 @@ end)
 
 windower.register_event('prerender', function()
 	local now = os.time()
-	if now > time_start + interval then
+	if now > time_start + settings.interval then
 		time_start = now
 		ability_hud() 
 	end
@@ -106,7 +106,7 @@ function ability_hud ()
 	-- Calculate the time for the next strategem from the additive recast
 	if (recast > 0) then
 		next_strat = recast % recharge_time
-		texts.text(timer3, '%.2d':format(next_strat)
+		texts.text(timer3, '%.2d':format(next_strat))
 		texts.visible(timer3, true)
 	else
 		texts.visible(timer3, false)
