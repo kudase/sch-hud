@@ -33,6 +33,7 @@ texts.alpha(stratcount, 50)
 
 local time_start = 0
 local defaults = {}
+defaults.floor = true
 defaults.interval = 0.1
 defaults.pos = {}
 defaults.pos.x = 1210
@@ -105,7 +106,11 @@ function ability_hud ()
 
 	-- Calculate the time for the next strategem from the additive recast
 	if (recast > 0) then
-		next_strat = recast % recharge_time
+		if settings.floor then
+			next_strat = recast % recharge_time
+		else
+			next_strat = math.ceil(recast % recharge_time)
+		end
 		texts.text(timer3, '%.2d':format(next_strat))
 		texts.visible(timer3, true)
 	else
@@ -212,6 +217,11 @@ windower.register_event('addon command', function(command1, command2, command3, 
         settings:save()
 		set_screen_position()
 
+	elseif command1 == 'f' or command1 == 'floor' then
+		settings.floor = not settings.floor
+		log('Timer display will round %s to the nearest second.':format(settings.floor and 'down' or 'up'))
+        settings:save()
+
     elseif command1 == 'i' or command1 == 'interval' then
         settings.interval = tonumber(command2) or .1
         log('Refresh interval set to %s seconds.':format(settings.interval))
@@ -219,7 +229,8 @@ windower.register_event('addon command', function(command1, command2, command3, 
 
     else
         print('%s (v%s)':format(_addon.name, _addon.version))
-        print('    \\cs(255,255,255)position <x> <y>\\cr - Changes the position of the graphics on the screen (defaults: x=1210, y=785)')
+		print('    \\cs(255,255,255)floor\\cr - Toggles between rounding the calculation for the recharge timer up or down (default: round down)')
         print('    \\cs(255,255,255)interval <value>\\cr - Allows you to change the refresh interval (default: 0.1)')
+        print('    \\cs(255,255,255)position <x> <y>\\cr - Changes the position of the graphics on the screen (defaults: x=1210, y=785)')
     end
 end)
